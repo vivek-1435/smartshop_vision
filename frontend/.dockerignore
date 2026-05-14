@@ -1,0 +1,24 @@
+node_modules
+npm-debug.log*
+.npm
+
+# Environment secrets
+.env
+.env.*
+
+# Build output (re-created by Docker build)
+dist
+
+# Dev tooling
+.eslintrc.js
+.eslintignore
+
+# Git
+.git
+.gitignore
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo

@@ -1,0 +1,22 @@
+{
+  "name": "SmartShop Bill Calculator",
+  "short_name": "SmartShop",
+  "description": "AI-powered auto shop billing with on-device vision",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#f97316",
+  "orientation": "portrait",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-72.png",   "sizes": "72x72",   "type": "image/png" },
+    { "src": "/icons/icon-96.png",   "sizes": "96x96",   "type": "image/png" },
+    { "src": "/icons/icon-128.png",  "sizes": "128x128", "type": "image/png" },
+    { "src": "/icons/icon-192.png",  "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512.png",  "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Scan Products", "short_name": "Scan", "url": "/scan", "description": "Open customer scanner" },
+    { "name": "Dashboard", "short_name": "Home", "url": "/dashboard", "description": "Open shopkeeper dashboard" }
+  ]
+}

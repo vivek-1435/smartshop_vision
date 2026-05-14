@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #f1f5f9;
+    font-family: 'DM Sans', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+  h1,h2,h3 { font-family: 'Syne', sans-serif; }
+}
+
+@layer components {
+  .app-shell {
+    max-width: 430px;
+    margin: 0 auto;
+    min-height: 100dvh;
+    background: #0a0a0f;
+    position: relative;
+    overflow-x: hidden;
+  }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #2a2a3a;
+    background: #0a0a0f;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+  .page-body {
+    padding: 20px;
+    padding-bottom: 90px;
+    overflow-y: auto;
+  }
+  .card {
+    background: #13131a;
+    border: 1px solid #2a2a3a;
+    border-radius: 14px;
+    padding: 16px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s;
+    outline: none;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: #f97316; color: #fff; }
+  .btn-secondary { background: #1e1e2e; color: #f1f5f9; border: 1px solid #2a2a3a; }
+  .btn-green { background: #22c55e; color: #fff; }
+  .btn-blue { background: #3b82f6; color: #fff; }
+  .btn-full { width: 100%; }
+  .input-field {
+    background: #1e1e2e;
+    border: 1px solid #2a2a3a;
+    color: #f1f5f9;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+  }
+  .input-field:focus { border-color: #f97316; }
+  .input-label {
+    font-size: 11px;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    display: block;
+  }
+  .tag { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+  .tag-orange { background: rgba(249,115,22,.15); color: #f97316; }
+  .tag-green { background: rgba(34,197,94,.15); color: #22c55e; }
+  .tag-blue { background: rgba(59,130,246,.15); color: #3b82f6; }
+  .scan-box {
+    width: 200px;
+    height: 200px;
+    border: 2px solid #f97316;
+    border-radius: 12px;
+    position: relative;
+  }
+  .scan-box::before, .scan-box::after {
+    content: '';
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-color: #f97316;
+    border-style: solid;
+  }
+  .scan-box::before { top: -2px; left: -2px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .scan-box::after { bottom: -2px; right: -2px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+  .scan-line {
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    height: 2px;
+    background: #f97316;
+    opacity: 0.8;
+    animation: scanMove 2s linear infinite;
+  }
+  @keyframes scanMove { 0% { top: 10px; } 100% { top: calc(100% - 12px); } }
+  .slide-in { animation: slideIn 0.3s ease; }
+  @keyframes slideIn { from { opacity:0; transform: translateY(-8px); } to { opacity:1; transform: translateY(0); } }
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 430px;
+    display: flex;
+    background: #13131a;
+    border-top: 1px solid #2a2a3a;
+    padding: 8px 0 env(safe-area-inset-bottom, 8px);
+    z-index: 50;
+  }
+  .nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 4px;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 10px;
+    font-family: 'DM Sans', sans-serif;
+    transition: color 0.2s;
+  }
+  .nav-item.active { color: #f97316; }
+  .nav-icon { font-size: 20px; }
+}
