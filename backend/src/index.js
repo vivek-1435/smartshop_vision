@@ -31,7 +31,7 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 // CORS
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(s=>s.trim());
 app.use(cors({
-  origin: (origin, cb) => (!origin || allowedOrigins.includes(origin)) ? cb(null,true) : cb(new Error('CORS rejected')),
+  origin: (origin, cb) => cb(null, true),
   credentials: true,
   methods: ['GET','POST','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization'],

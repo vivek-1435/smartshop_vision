@@ -172,6 +172,13 @@ export function useVisionScanner({
   const [fps, setFps] = useState(0);
   const frameTimesRef = useRef([]);
 
+  // Load the vision store (downloads from cloud if available)
+  useEffect(() => {
+    if (shopId && shopId !== 'demo') {
+      VE.loadStore(shopId);
+    }
+  }, [shopId]);
+
   // Start camera
   useEffect(() => {
     let mounted = true;

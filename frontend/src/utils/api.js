@@ -1,7 +1,11 @@
 import axios from 'axios';
 
+const apiBase = import.meta.env.VITE_API_URL !== undefined 
+  ? import.meta.env.VITE_API_URL 
+  : 'http://localhost:4000';
+
 const api = axios.create({
-  baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:4000') + '/api',
+  baseURL: apiBase + '/api',
   timeout: 20000,
   withCredentials: true, // send httpOnly cookie
 });

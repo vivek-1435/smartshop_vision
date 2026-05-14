@@ -47,6 +47,23 @@ npm run dev                   # port 5173
 cd backend && npm run seed
 ```
 
+### Option C — Testing on Mobile (ngrok)
+ngrok http --url=epitheliomuscular-volcanically-dorris.ngrok-free.dev 5173
+
+To test the camera and PWA features on a real mobile device, you need an HTTPS connection. You can use `ngrok` to expose your local frontend to the internet:
+
+1. Ensure both the backend (`npm run dev` in `backend/`) and frontend (`npm run dev` in `frontend/`) are running.
+2. In a new terminal, start ngrok on the frontend port:
+```bash
+ngrok http 5173
+```
+*(Optional)* If you have a static ngrok domain, you can use:
+```bash
+ngrok http --url=your-domain.ngrok-free.dev 5173
+```
+3. Open the provided `https://...ngrok-free.dev` link on your phone.
+Note: To prevent CORS errors during local development, the backend has been configured to allow all origins in development mode.
+
 ---
 
 ## Environment Variables

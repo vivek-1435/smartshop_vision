@@ -22,6 +22,7 @@
 
 import * as tf from '@tensorflow/tfjs';
 import '@tensorflow/tfjs-backend-webgl';
+import api from './api';
 
 // ── Constants ────────────────────────────────────────────────────
 const MODEL_URL =
@@ -256,6 +257,7 @@ export async function predict(imgEl, shopId) {
 
 // ── Persistence (IndexedDB) ──────────────────────────────────────
 
+let syncTimeout = null;
 async function persistStore(shopId) {
   const store = getStore(shopId);
   // Serialise as plain object with typed arrays
@@ -266,6 +268,14 @@ async function persistStore(shopId) {
     version: 2,
   };
   await dbPut(`shop_${shopId}`, JSON.stringify(data));
+
+  // Sync to Cloud with a 2-second debounce to prevent network flooding during rapid captures
+  if (shopId && shopId !== 'demo') {
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(() => {
+      api.post('/vision/sync', data).catch(e => console.warn('Cloud sync failed:', e));
+    }, 2000);
+  }
 }
 
 /**
@@ -274,9 +284,23 @@ async function persistStore(shopId) {
  */
 export async function loadStore(shopId) {
   try {
+    // 1. Try to fetch the latest model from the cloud first
+    if (shopId && shopId !== 'demo') {
+      try {
+        const res = await api.get(`/vision/public/${shopId}`);
+        if (res.data && res.data.labels) {
+          // Save cloud data to local IndexedDB for offline fallback
+          await dbPut(`shop_${shopId}`, JSON.stringify(res.data));
+        }
+      } catch (e) {
+        console.warn('Cloud load failed, falling back to local:', e);
+      }
+    }
+
+    // 2. Load from local IndexedDB (which now has the latest cloud data, or offline fallback)
     const raw = await dbGet(`shop_${shopId}`);
     if (!raw) return;
-    const data = JSON.parse(raw);
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
     const store = getStore(shopId);
     store.labels = data.labels || [];
     store.embeddings = (data.embeddings || []).map((e) => new Float32Array(e));

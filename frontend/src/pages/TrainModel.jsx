@@ -318,12 +318,7 @@ function TrainModelInner() {
           <button className="btn btn-secondary btn-full" onClick={() => document.getElementById('import-json').click()}>Import Model File</button>
         </div>
 
-        {trainer.totalSamples > 0 && (
-          <button onClick={() => { if (confirm('Delete ALL training data for this shop?')) { trainer.clearAll(); toast.success('Cleared'); } }}
-            style={{ width: '100%', padding: 12, borderRadius: 10, border: '1px solid rgba(239,68,68,.3)', background: 'rgba(239,68,68,.05)', color: '#ef4444', cursor: 'pointer', fontFamily: 'DM Sans', fontSize: 13 }}>
-            🗑 Clear All Training Data
-          </button>
-        )}
+
       </div>
       <BottomNav />
     </div>

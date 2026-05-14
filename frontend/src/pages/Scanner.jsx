@@ -35,6 +35,7 @@ function ScannerInner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [manualForm, setManualForm] = useState({ name: '', price: '' });
   const [showManualForm, setShowManualForm] = useState(false);
+  const [scannerActive, setScannerActive] = useState(true);
   const lastDetected = useRef('');
 
   useEffect(() => {
@@ -58,12 +59,13 @@ function ScannerInner() {
     setDetectInfo(`Detected: ${detected.label} (${Math.round(detected.confidence * 100)}%)`);
     toast.success(`Added: ${detected.label}`, { duration: 2000 });
     addItem(prod);
+    setScannerActive(false);
     setTimeout(() => setDetectInfo(''), 3000);
   }, [addItem, products]);
 
   const { videoRef, canvasRef, isScanning, cameraError } = useVisionScanner({
     shopId: shopId === 'demo' ? null : shopId,
-    active: true,
+    active: scannerActive,
     intervalMs: 1500,
     onDetected: handleDetected,
     debounceMs: 5000,
@@ -127,11 +129,18 @@ function ScannerInner() {
         )}
         <canvas ref={canvasRef} style={{ display: 'none' }} />
         <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <div className="scan-box"><div className="scan-line" /></div>
+          {scannerActive && <div className="scan-box"><div className="scan-line" /></div>}
         </div>
-        {isScanning && (
+        {isScanning && scannerActive && (
           <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', background: 'rgba(0,0,0,.75)', color: '#f97316', fontSize: 12, padding: '4px 12px', borderRadius: 20, whiteSpace: 'nowrap' }}>
             🔍 Scanning...
+          </div>
+        )}
+        {!scannerActive && !cameraError && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', zIndex: 10 }}>
+            <button onClick={() => setScannerActive(true)} className="btn btn-primary" style={{ padding: '12px 24px', borderRadius: 24, fontSize: 14 }}>
+              Scan Next Item
+            </button>
           </div>
         )}
         {detectInfo && (
@@ -330,7 +339,7 @@ function ScannerInner() {
         </div>
         <button onClick={handleDone} disabled={submitting || cart.length === 0}
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px', borderRadius: 12, border: 'none', background: cart.length > 0 ? '#f97316' : '#2a2a3a', color: '#fff', fontFamily: 'DM Sans', fontSize: 14, fontWeight: 600, cursor: cart.length > 0 ? 'pointer' : 'not-allowed', transition: 'all .2s', opacity: cart.length > 0 ? 1 : .5 }}>
-          {submitting ? 'Generating...' : '👍 Done & Bill'}
+          {submitting ? 'Generating...' : 'Done & Bill'}
         </button>
       </div>
     </div>
