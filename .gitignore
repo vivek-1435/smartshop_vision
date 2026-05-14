@@ -35,6 +35,3 @@ Thumbs.db
 # Test coverage
 coverage/
 .nyc_output/
-
-# Docker override
-docker-compose.override.yml
