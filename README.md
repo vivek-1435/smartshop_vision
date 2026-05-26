@@ -1,311 +1,198 @@
-# SmartShop — Production-Ready Auto Shop Bill Calculator
+# SmartShop — Production-Ready Auto Shop Bill Calculator (with Docker Deployment)
 
-Mobile-first billing system with **on-device AI vision**, UPI payments, and real-time analytics.  
-No external AI API. No image data leaves the device.
+SmartShop is a mobile-first, high-performance billing system featuring **on-device AI vision**, UPI payments, and real-time analytics. Designed for auto repair shops and spare parts dealers, all image classification and neural inference run 100% inside the browser using TensorFlow.js and IndexedDB—ensuring absolute privacy with zero image data leaving the device.
 
----
-
-## What's included
-
-| Layer | Stack |
-|---|---|
-| Frontend | React 18 · Vite 5 · TailwindCSS · TF.js · PWA |
-| Vision AI | MobileNetV3-Small + KNN (100% in-browser, IndexedDB) |
-| Backend | Node 20 · Express · MongoDB · Cloudinary |
-| Auth | JWT + bcrypt-12 + httpOnly cookie |
-| Infra | Docker Compose · Nginx · GitHub Actions CI/CD |
-| Tests | Jest + Supertest (auth, bills, analytics, health) |
+This repository is equipped with a **production-grade, fully containerized Docker architecture** designed for quick, robust local deployment or VPS hosting.
 
 ---
 
-## Quick Start
+## 📂 Unified Architecture Overview
 
-### Option A — Docker (recommended)
-```bash
-git clone https://github.com/yourname/smartshop && cd smartshop
+SmartShop utilizes a simplified, high-efficiency **Single Gateway** multi-container setup. Instead of running a redundant external Nginx proxy, the Frontend container itself acts as the entrypoint reverse-proxy—handling static asset serving, client-side SPA routing, and API request forwarding.
 
-cp .env.example .env          # fill in secrets
-docker compose up -d          # starts mongo + api + web
-
-# App  → http://localhost
-# API  → http://localhost:4000/health
 ```
-
-### Option B — Local dev
-```bash
-# Terminal 1 – backend
-cd backend && npm install
-cp .env.example .env          # set MONGODB_URI + JWT_SECRET
-npm run dev                   # port 4000
-
-# Terminal 2 – frontend
-cd frontend && npm install
-cp .env.example .env          # set VITE_API_URL=http://localhost:4000
-npm run dev                   # port 5173
-
-# Seed demo shop + products
-cd backend && npm run seed
+                  ┌──────────────────────────────────────────────┐
+                  │              User Web Browser                │
+                  └──────────────────────┬───────────────────────┘
+                                         │ (Port 80)
+                                         ▼
+                  ┌──────────────────────────────────────────────┐
+                  │         smartshop-frontend (Nginx)           │
+                  ├──────────────────────┬───────────────────────┤
+                  │                      │                       │
+                  │  (Static HTML/JS/CSS)│  (Proxy /api/* requests)
+                  │  └─→ Serves locally  │  └─→ Forward to Backend
+                  └──────────────────────┼───────────────────────┘
+                                         │ (smartshop-network:4000)
+                                         ▼
+                  ┌──────────────────────────────────────────────┐
+                  │           smartshop-backend (Node)           │
+                  ├──────────────────────┬───────────────────────┤
+                  │                      │                       │
+                  │                      │  (Queries & Updates)  │
+                  │                      └─→ Database            │
+                  └──────────────────────┬───────────────────────┘
+                                         │ (smartshop-network:27017)
+                                         ▼
+                  ┌──────────────────────────────────────────────┐
+                  │            smartshop-mongo (MongoDB)         │
+                  └──────────────────────────────────────────────┘
 ```
-
-### Option C — Testing on Mobile (ngrok)
-ngrok http --url=epitheliomuscular-volcanically-dorris.ngrok-free.dev 5173
-
-To test the camera and PWA features on a real mobile device, you need an HTTPS connection. You can use `ngrok` to expose your local frontend to the internet:
-
-1. Ensure both the backend (`npm run dev` in `backend/`) and frontend (`npm run dev` in `frontend/`) are running.
-2. In a new terminal, start ngrok on the frontend port:
-```bash
-ngrok http 5173
-```
-*(Optional)* If you have a static ngrok domain, you can use:
-```bash
-ngrok http --url=your-domain.ngrok-free.dev 5173
-```
-3. Open the provided `https://...ngrok-free.dev` link on your phone.
-Note: To prevent CORS errors during local development, the backend has been configured to allow all origins in development mode.
 
 ---
 
-## Environment Variables
+## 🐳 Docker Deployment Details
 
-### Backend (`backend/.env`)
+The Docker environment orchestrates three specialized services inside a secure, custom bridge network (`smartshop-network`).
+
+### 1. Frontend & Gateway Container (`frontend/Dockerfile`)
+- **Stage 1 (Build)**: Compiles the React 18 / Vite 5 application using Node 20. Tensorflow.js and PDF utilities are split into separate chunks to minimize the initial load footprint.
+- **Stage 2 (Runtime)**: Serves the static assets via Nginx Alpine (~150MB total size). 
+- **Routing**: Mounts `nginx.conf` directly, serving:
+  - `/` -> Local static React files with automatic SPA route redirection (`try_files`).
+  - `/api/` -> Proxied directly to `http://backend:4000/api/` (preserving path structure).
+  - `/health` -> Proxied to backend health probe for container orchestrator checks.
+
+### 2. Backend API Container (`backend/Dockerfile`)
+- **Base**: Minimalist Node 20 Alpine (~350MB).
+- **Security**: Includes `dumb-init` as the entrypoint to handle kernel signals (like `SIGTERM` and `SIGINT`) properly, enabling graceful shutdowns. Runs under production configuration with strict rate limiters, Helmet headers, and Express Mongo injection sanitizers.
+- **Internal Only**: The backend runs internally at port `4000` and is **not exposed** to the host machine. All external API requests must safely route through the frontend's reverse proxy.
+
+### 3. Database Container (`mongo:5.0`)
+- **Base**: Official MongoDB 5.0 image.
+- **Data Persistence**: Uses named Docker volumes (`mongo_data` and `mongo_config`) to ensure that transaction data and configuration are fully preserved across container restarts and updates.
+- **Security**: Configured with strict root user authentication.
+
+---
+
+## ⚡ Relative Path Routing Resolution
+
+Single-Page Apps (SPAs) bake environment variables at image build time. When building inside Docker, `.env` files are excluded by `.dockerignore` for security, which traditionally sets the API target to a hardcoded URL. 
+
+To overcome this, the Axios HTTP client is configured in [api.js](frontend/src/utils/api.js) to resolve requests dynamically:
+```javascript
+const apiBase = import.meta.env.VITE_API_URL || '';
+```
+- **In Docker**: `VITE_API_URL` is undefined, setting `apiBase` to `''`. The browser issues relative requests (e.g. `/api/auth/login`), which Nginx receives on port 80 and proxies directly to the backend. This eliminates CORS configuration issues and prevents exposing backend ports externally.
+- **In Local Development**: If running the frontend outside Docker, Vite's local dev server automatically catches `/api/` requests and proxies them to the backend at `http://localhost:4000`.
+
+---
+
+## 🚀 Quick Start in 3 Steps
+
+### 1. Set Environment Configuration
+Create your environment file in the root directory:
+```bash
+cp .env.example .env
+```
+Ensure you generate a secure JWT secret and configure a database password:
 ```env
-PORT=4000
-NODE_ENV=production
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/smartshop
-JWT_SECRET=<64-char-hex>       # openssl rand -hex 64
-JWT_EXPIRES_IN=7d
-CLOUDINARY_CLOUD_NAME=xxx
-CLOUDINARY_API_KEY=xxx
-CLOUDINARY_API_SECRET=xxx
-FRONTEND_URL=https://smartshop.yourdomain.com
-LOG_LEVEL=info
+MONGO_USER=admin
+MONGO_PASS=SmartShop_Secure_Pass_2026
+JWT_SECRET=a94a514bf93892de6ca42167462adc065654e2f645ddceea7c30393e119e9bbb1a28456cab0647a1e7280ddbb7b167e068a6634cf0d4f0d614ea9d2f6f5a45f2
 ```
 
-### Frontend (`frontend/.env`)
-```env
-VITE_API_URL=https://api.smartshop.yourdomain.com
-```
-
----
-
-## Project Structure
-
-```
-smartshop/
-├── backend/
-│   ├── src/
-│   │   ├── index.js              Helmet · CORS · rate-limit · compression · graceful shutdown
-│   │   ├── middleware/
-│   │   │   ├── auth.js           JWT verify · passwordChangedAt guard · cookie fallback
-│   │   │   ├── validate.js       express-validator rules for every route
-│   │   │   └── errorHandler.js   Central handler · AppError · no stack leaks in prod
-│   │   ├── models/
-│   │   │   ├── Shopkeeper.js     bcrypt-12 · auto shopId · passwordChangedAt
-│   │   │   ├── Product.js        Full-text index · Cloudinary ref · sampleCount sync
-│   │   │   └── Bill.js           Atomic billNumber · auto billCode · refund status
-│   │   ├── routes/
-│   │   │   ├── auth.js           register · login · logout · me · profile · change-password
-│   │   │   ├── shop.js           dashboard · qr · public/:shopId
-│   │   │   ├── products.js       CRUD · categories · sample-count · Cloudinary cleanup
-│   │   │   ├── bills.js          create · list · get · mark-paid · refund
-│   │   │   ├── analytics.js      week/month/year MongoDB aggregation pipelines
-│   │   │   └── vision.js         Status stub (all inference is on-device)
-│   │   └── utils/
-│   │       ├── logger.js         Winston rotating files + console
-│   │       └── seed.js           Demo shop + products seeder
-│   ├── tests/api.test.js         Jest + Supertest — 20 test cases
-│   ├── jest.config.js
-│   ├── Dockerfile                Multi-stage · non-root user · healthcheck
-│   └── .env.example
-│
-├── frontend/
-│   ├── src/
-│   │   ├── main.jsx              ErrorBoundary · OfflineBanner · Toaster
-│   │   ├── App.jsx               Lazy routes · Suspense · PrivateRoute · 404 redirect
-│   │   ├── components/
-│   │   │   ├── ErrorBoundary.jsx Catches render errors · recovery UI
-│   │   │   ├── OfflineBanner.jsx Live network status indicator
-│   │   │   ├── ModelLoader.jsx   MobileNetV3 download progress bar
-│   │   │   ├── BottomNav.jsx
-│   │   │   └── QRCodeDisplay.jsx
-│   │   ├── context/
-│   │   │   ├── AuthContext.jsx   Token + httpOnly cookie · auto-redirect on 401
-│   │   │   └── CartContext.jsx   Cart state · totals · GST
-│   │   ├── hooks/
-│   │   │   ├── useVision.js      useModelLoader · useVisionTrainer · useVisionScanner
-│   │   │   └── useCamera.js      MediaDevices · stream lifecycle
-│   │   ├── pages/
-│   │   │   ├── Landing.jsx
-│   │   │   ├── Login.jsx
-│   │   │   ├── Register.jsx
-│   │   │   ├── Dashboard.jsx     Stats · QR code · recent bills
-│   │   │   ├── Analytics.jsx     Bar chart · top products · period tabs
-│   │   │   ├── TrainModel.jsx    Upload/camera capture · quality bar · export/import
-│   │   │   ├── Scanner.jsx       3-tab UI: catalog · cart · manual add/remove
-│   │   │   └── BillPage.jsx      Itemised bill · PDF download · UPI QR + deeplink
-│   │   └── utils/
-│   │       ├── visionEngine.js   MobileNetV3 + KNN + augmentation + IndexedDB
-│   │       ├── api.js            Axios · 401 interceptor · token injection
-│   │       └── billPDF.js        jsPDF bill generation
-│   ├── public/
-│   │   ├── manifest.json         PWA manifest with shortcuts
-│   │   └── icons/                SVG icons (replace with PNGs for production)
-│   ├── Dockerfile                Multi-stage Vite build → nginx:alpine
-│   ├── nginx.conf                SPA routing · gzip · cache headers · security headers
-│   └── .env.example
-│
-├── docker-compose.yml            mongo + api + web · health checks · named volumes
-├── .github/workflows/ci.yml      Test → Build → Docker push on main
-├── .gitignore
-└── .env.example                  Root secrets for docker-compose
-```
-
----
-
-## Vision AI — How It Works
-
-```
-Training (shopkeeper):
-  Photo → MobileNetV3 → 1024-d embedding
-         × 5 augmented variants (flip, brightness)
-         → stored in IndexedDB as Float32Array
-
-Inference (customer scanning):
-  Camera frame every 1.5s
-  → 224×224 canvas crop
-  → MobileNetV3 → 1024-d embedding
-  → KNN (K=3) vote on stored embeddings
-  → cosine similarity > 55% → fire onDetected → add to cart
-```
-
-| Property | Value |
-|---|---|
-| Model | MobileNetV3-Small (TF Hub) |
-| Size | ~2 MB, cached after first load |
-| Embedding | 1024-d L2-normalised |
-| Classifier | KNN, K=3, cosine similarity |
-| Confidence threshold | 0.55 |
-| Inference interval | 1500 ms |
-| Debounce | 5000 ms (same product) |
-| Storage | IndexedDB, per-shop namespace |
-| Server calls | Zero — no images leave the device |
-
-**Recommended training:** 3–5 diverse photos per product → auto-generates ~20 augmented samples → "Well trained" status.
-
----
-
-## API Reference
-
-### Auth
-| Method | Endpoint | Auth | Body |
-|---|---|---|---|
-| POST | `/api/auth/register` | — | `shopName, ownerName, email, password, upiId` |
-| POST | `/api/auth/login` | — | `email, password` |
-| POST | `/api/auth/logout` | — | — |
-| GET | `/api/auth/me` | 🔒 | — |
-| PATCH | `/api/auth/profile` | 🔒 | `shopName, ownerName, upiId, phone, address, gstNumber` |
-| PATCH | `/api/auth/change-password` | 🔒 | `currentPassword, newPassword` |
-
-### Products
-| Method | Endpoint | Auth | Notes |
-|---|---|---|---|
-| GET | `/api/products` | 🔒 | `?search=&category=` |
-| GET | `/api/products/public/:shopId` | — | Customer-facing catalog |
-| GET | `/api/products/categories` | 🔒 | Distinct category list |
-| POST | `/api/products` | 🔒 | `multipart/form-data` with `image` file |
-| PATCH | `/api/products/:id` | 🔒 | Update fields |
-| PATCH | `/api/products/:id/sample-count` | 🔒 | Sync on-device KNN count |
-| DELETE | `/api/products/:id` | 🔒 | Soft-delete, preserves bill history |
-
-### Bills
-| Method | Endpoint | Auth | Notes |
-|---|---|---|---|
-| POST | `/api/bills` | — | Customer creates: `shopId, items[]` |
-| GET | `/api/bills` | 🔒 | `?page=&limit=&status=&from=&to=&search=` |
-| GET | `/api/bills/:id` | — | Public bill view |
-| PATCH | `/api/bills/:id/payment` | — | `paymentMethod, upiTransactionId` |
-| PATCH | `/api/bills/:id/refund` | 🔒 | Shopkeeper only |
-
-### Analytics & Shop
-| Method | Endpoint | Auth | Notes |
-|---|---|---|---|
-| GET | `/api/analytics` | 🔒 | `?period=week\|month\|year` |
-| GET | `/api/shop/dashboard` | 🔒 | Stats + recent bills |
-| GET | `/api/shop/qr` | 🔒 | Customer entry QR URL |
-| GET | `/api/shop/public/:shopId` | — | Public shop info |
-| GET | `/health` | — | Health check |
-
----
-
-## Security
-
-- **Passwords:** bcrypt with 12 rounds
-- **JWT:** `passwordChangedAt` guard invalidates tokens on password change
-- **Auth:** supports both `Authorization: Bearer` header and `httpOnly` cookie
-- **Headers:** Helmet on every response
-- **Injection:** express-mongo-sanitize strips `$` and `.` from inputs
-- **Rate limiting:** 500 req/15 min global, 20 req/15 min on auth routes
-- **Validation:** express-validator on every route — 422 with field-level errors
-- **Errors:** no stack traces in production responses
-- **CORS:** environment-based allowlist, comma-separated for multi-domain
-- **Docker:** non-root user, minimal Alpine image
-- **Shutdown:** SIGTERM/SIGINT graceful drain with 10s hard timeout
-
----
-
-## Tests
-
+### 2. Start Everything & Get Access Links
+Execute the helper script to verify Docker Desktop status, build the optimized images, and start the containers. **Upon successful startup, the script will output the direct clickable links to access your project:**
 ```bash
-cd backend && npm test
-
-# Auth          ✓ register  ✓ duplicate rejected  ✓ weak password
-#               ✓ login     ✓ wrong password       ✓ me  ✓ no token
-# Shop          ✓ dashboard  ✓ qr  ✓ public  ✓ 404
-# Bills         ✓ create  ✓ empty rejected  ✓ get  ✓ mark paid  ✓ list
-# Analytics     ✓ week period  ✓ invalid period rejected
-# Health        ✓ ok
+./start-docker.sh
 ```
-
----
-
-## Deployment
-
-### Railway + Vercel (simplest)
-```
-Backend  → Railway: connect repo, set env vars, deploy backend/
-Frontend → Vercel:  connect repo, root=frontend, set VITE_API_URL
-Database → MongoDB Atlas: free M0 cluster is fine for small shops
-Images   → Cloudinary: free tier handles thousands of product images
-```
-
-### VPS with Docker Compose
+*Alternatively, you can boot the containers manually using standard Docker Compose (without the summary printout):*
 ```bash
-# First deploy
-git clone ... && cd smartshop
-cp .env.example .env && nano .env
 docker compose up -d
-
-# Rolling update (zero downtime)
-git pull
-docker compose build
-docker compose up -d --no-deps api web
 ```
 
-### GitHub Actions (CI/CD)
-Push to `main` → runs tests → builds Docker images → pushes to Docker Hub.
+### 3. Pause, Resume, or Stop the Project
+You can temporarily suspend or pause your running project containers without deleting them, or stop them completely:
+```bash
+# Pause the running project (freezes container execution state)
+docker compose pause
 
-Set these secrets in your GitHub repo:
-- `DOCKERHUB_USERNAME`
-- `DOCKERHUB_TOKEN`
-- `VITE_API_URL`
+# Resume the project (unpauses and restores execution instantly)
+docker compose unpause
+
+# Stop/shut down the containers (retains persistent data)
+docker compose stop
+```
+
+### 4. Fully Clean/Reset the Environment (Database Wipe)
+We have provided an interactive utility script `cleanup-docker.sh` in the root folder. Running this script will:
+1. **Prompt you for confirmation** to prevent accidental data loss.
+2. **Stop and remove** all running SmartShop containers and the virtual bridge network.
+3. **Completely delete** the persistent MongoDB volumes (`mongo_data` and `mongo_config`), doing a complete database reset.
+
+This is highly useful when you want to wipe the system and start over from a clean slate.
+```bash
+./cleanup-docker.sh
+```
+
+### 5. Seed Demo Data (Optional)
+To populate a demo shop with predefined automotive parts and services:
+```bash
+docker compose exec backend npm run seed
+```
 
 ---
 
-## PWA Install
+## 📱 Containerized Access Points
 
-On mobile Chrome/Safari: tap **"Add to Home Screen"** — the app installs as a native-like PWA with:
-- Offline-capable scanning (model cached in browser)
-- Portrait lock
-- Standalone display (no browser chrome)
-- App shortcuts (Scan / Dashboard)
+Once the containers show **healthy** status in Docker:
+- **Frontend / Application**: [http://localhost](http://localhost)
+- **Backend API Proxy**: [http://localhost/api](http://localhost/api)
+- **Health Diagnostics**: [http://localhost/health](http://localhost/health)
+
+---
+
+## 🛠️ Operations & Maintenance Checklist
+
+| Action | Command | Purpose |
+| :--- | :--- | :--- |
+| **Start Services** | `docker compose up -d` | Launch all services in background |
+| **Pause Project** | `docker compose pause` | Freezes container execution without losing state |
+| **Resume Project** | `docker compose unpause` | Instantly unpauses and resumes the frozen project |
+| **Stop Services (Soft)** | `docker compose stop` | Gracefully shuts down container execution |
+| **Stop & Clear Containers** | `docker compose down` | Stops and removes running containers |
+| **View Service Logs** | `docker compose logs -f` | Inspect live terminal output of all services |
+| **Rebuild & Restart** | `docker compose up -d --build` | Re-build images and boot after code changes |
+| **Run API Tests** | `docker compose exec backend npm test` | Runs Jest integration test suite in container |
+| **Database Prompt** | `docker compose exec mongo mongosh -u admin` | Opens direct MongoDB terminal shell |
+| **Clean Wipe** | `./cleanup-docker.sh` (or `docker compose down -v`) | Stops containers and deletes database volumes |
+
+---
+
+## 🐛 Troubleshooting Guidelines
+
+### ❌ `POST /auth/login not found` (404 Error)
+- **Cause**: Nginx routing rules are stripping the prefix.
+- **Fix**: Verify your `nginx.conf` has `proxy_pass http://backend:4000;` **without** a trailing slash on the port. Adding a trailing slash causes Nginx to strip the `/api/` prefix, leading to a backend routing mismatch.
+
+### ❌ Frontend displays standard Nginx default screen / Blank Page
+- **Cause**: Corrupted build or Nginx is pointing to a wrong directory.
+- **Fix**: Rebuild your frontend bundle: `docker compose up -d --build frontend`. Make sure `frontend/Dockerfile` correctly copies the compiled `/app/dist` folder to `/usr/share/nginx/html`.
+
+### ❌ Backend container keeps restarting / database errors
+- **Cause**: MongoDB is not initialized or credential mismatch.
+- **Fix**: Check logs with `docker compose logs mongo`. Verify that `MONGO_PASS` in your root `.env` matches the credentials used in `docker-compose.yml`.
+
+---
+
+## 💻 Local Non-Docker Development
+
+If you wish to run the project locally without Docker:
+
+### 1. Spin up the backend:
+```bash
+cd backend
+npm install
+cp .env.example .env # Set MONGODB_URI (e.g. local mongodb://localhost:27017/smartshop) and JWT_SECRET
+npm run dev
+```
+
+### 2. Spin up the frontend:
+```bash
+cd ../frontend
+npm install
+cp .env.example .env # Set VITE_API_URL=http://localhost:4000
+npm run dev
+```
+Access the application on [http://localhost:5173](http://localhost:5173). The Vite server will automatically proxy API calls to port `4000`.
